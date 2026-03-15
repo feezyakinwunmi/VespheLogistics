@@ -1300,8 +1300,8 @@ const renderReviewStep = () => (
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#0a0a0a',
+    flex: 2,
+    backgroundColor: '#000000',
   },
   mapPickerButton: {
   flexDirection: 'row',
