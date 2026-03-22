@@ -99,6 +99,84 @@ export function DeliveryDetailsScreen({ navigation, route }: any) {
   const [updating, setUpdating] = useState(false);
   const [hasShownAlert, setHasShownAlert] = useState(false);
 
+
+  // Add this function inside your component (before the updateStatus function)
+// Add this function inside your component (before the updateStatus function)
+const addToVendorWallet = async (vendorId: string, amount: number) => {
+  try {
+    console.log('💰 Adding to vendor wallet:', { vendorId, amount });
+    
+    // Convert amount to number explicitly
+    const amountToAdd = Number(amount);
+    
+    // First, check if wallet exists
+    const { data: existingWallet, error: fetchError } = await supabase
+      .from('vendor_wallets')
+      .select('balance, total_earned')
+      .eq('vendor_id', vendorId)
+      .maybeSingle();
+    
+    if (fetchError) {
+      console.error('Error fetching wallet:', fetchError);
+      return;
+    }
+    
+    if (existingWallet) {
+      // CRITICAL: Force conversion to numbers
+      const currentBalance = Number(existingWallet.balance);
+      const currentTotalEarned = Number(existingWallet.total_earned);
+      
+      const newBalance = currentBalance + amountToAdd;
+      const newTotalEarned = currentTotalEarned + amountToAdd;
+      
+      console.log('Wallet update:', {
+        currentBalance,
+        amountToAdd,
+        newBalance,
+        currentTotalEarned,
+        newTotalEarned
+      });
+      
+      // Update existing wallet with numeric addition
+      const { error: updateError } = await supabase
+        .from('vendor_wallets')
+        .update({
+          balance: newBalance,
+          total_earned: newTotalEarned,
+          updated_at: new Date().toISOString()
+        })
+        .eq('vendor_id', vendorId);
+      
+      if (updateError) {
+        console.error('Error updating wallet:', updateError);
+      } else {
+        console.log(`✅ Added ₦${amountToAdd} to vendor ${vendorId} wallet`);
+        console.log(`   New balance: ₦${newBalance}`);
+      }
+    } else {
+      // Create new wallet
+      const { error: insertError } = await supabase
+        .from('vendor_wallets')
+        .insert({
+          vendor_id: vendorId,
+          balance: amountToAdd,
+          total_earned: amountToAdd,
+          pending_balance: 0,
+          updated_at: new Date().toISOString()
+        });
+      
+      if (insertError) {
+        console.error('Error creating wallet:', insertError);
+      } else {
+        console.log(`✅ Created new wallet for vendor ${vendorId} with ₦${amountToAdd}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error in addToVendorWallet:', error);
+  }
+};
+
+
   useEffect(() => {
     
     if (authLoading) return;
@@ -186,8 +264,6 @@ const updateStatus = async (newStatus: string) => {
 
   setUpdating(true);
   try {
-  
-
     const updates: any = { status: newStatus };
     const now = new Date().toISOString();
 
@@ -201,21 +277,38 @@ const updateStatus = async (newStatus: string) => {
       if (delivery.order_type === 'business') {
         updates.completed_at = now;
       }
+      
+      // For normal orders (food), add to vendor wallet
+      if (delivery.order_type !== 'business') {
+        // Get the order details to get vendor_id and vendor_payout
+        const { data: orderDetails, error: orderError } = await supabase
+          .from('orders')
+          .select('vendor_id, vendor_payout')
+          .eq('id', id)
+          .single();
+        
+        if (orderError) {
+          console.error('Error fetching order details:', orderError);
+        } else if (orderDetails && orderDetails.vendor_payout) {
+          console.log('💰 Adding to vendor wallet:', {
+            vendorId: orderDetails.vendor_id,
+            amount: orderDetails.vendor_payout
+          });
+          await addToVendorWallet(orderDetails.vendor_id, orderDetails.vendor_payout);
+        }
+      }
     }
 
-
+    // Update the order status
     let result;
     if (delivery.order_type === 'business') {
-      // Business logistics table has UUID ids
       result = await supabase
         .from('business_logistics')
         .update(updates)
-        .eq('id', id) // id is UUID like 'a8f00c18-55bd-47a6-9f3f-9f6c51e569f2'
+        .eq('id', id)
         .eq('rider_id', user?.id)
         .select();
-
     } else {
-      // Orders table has string IDs like 'ORD-1678fd'
       const orderUpdates: any = { 
         status: newStatus,
         updated_at: now 
@@ -230,20 +323,14 @@ const updateStatus = async (newStatus: string) => {
       result = await supabase
         .from('orders')
         .update(orderUpdates)
-        .eq('id', id) // id is string like 'ORD-1678fd'
+        .eq('id', id)
         .eq('rider_id', user?.id)
         .select();
-
     }
 
     if (result.error) {
       console.error('Update error:', result.error);
       throw result.error;
-    }
-
-    if (!result.data || result.data.length === 0) {
-      console.error('No data returned from update');
-      throw new Error('Update succeeded but no data returned');
     }
 
     Alert.alert('Success', `Delivery marked as ${newStatus.replace('_', ' ')}`);
@@ -258,6 +345,8 @@ const updateStatus = async (newStatus: string) => {
     setUpdating(false);
   }
 };
+
+
 const getStatusActions = () => {
   if (!delivery) return [];
 
