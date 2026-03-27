@@ -12,12 +12,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Toast from 'react-native-toast-message';
-
+import { supabase } from '../../services/supabase';
+import { useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useRiderDeliveries } from '../../hooks/useRiderDeliveries';
+import { useFocusEffect } from '@react-navigation/native';
+
 
 export function RiderDashboardScreen({ navigation }: any) {
   const { user, signOut } = useAuth();
+const [unreadCount, setUnreadCount] = useState(0);
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -69,6 +73,69 @@ export function RiderDashboardScreen({ navigation }: any) {
     return colors[status] || '#666';
   };
 
+  // Fetch unread messages for customer
+const fetchUnreadMessages = async () => {
+  if (!user?.id) return;
+  
+  try {
+    const { data: conversations, error: convError } = await supabase
+      .from('conversations')
+      .select('id')
+      .contains('participants', [user.id]);
+
+    if (convError || !conversations || conversations.length === 0) {
+      setUnreadCount(0);
+      return;
+    }
+
+    const conversationIds = conversations.map(c => c.id);
+
+    const { count, error } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .in('conversation_id', conversationIds)
+      .eq('read', false)
+      .neq('sender_id', user.id);
+
+    if (!error) {
+      setUnreadCount(count || 0);
+    }
+  } catch (error) {
+    console.error('Error fetching unread messages:', error);
+  }
+};
+// Fetch unread messages on mount
+useEffect(() => {
+  fetchUnreadMessages();
+  
+  // Real-time subscription for new messages
+  const subscription = supabase
+    .channel('customer-messages')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+      },
+      () => {
+        fetchUnreadMessages();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}, [user?.id]);
+
+// Refresh unread count when screen comes into focus
+useFocusEffect(
+  React.useCallback(() => {
+    fetchUnreadMessages();
+  }, [])
+);
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -87,9 +154,17 @@ export function RiderDashboardScreen({ navigation }: any) {
               style={{ width: 80, height: 60 }}
               resizeMode="contain"
             />
-            <Text style={styles.greeting}>Welcome back,</Text>
+            
+            <View>
+              <Text style={styles.greeting}>Welcome back,</Text>
             <Text style={styles.riderName}>{user?.name || 'Rider'}</Text>
+           
+
+     
+            </View>
           </View>
+
+          <View style={styles.headericon}>
 
           <TouchableOpacity
             style={[
@@ -100,7 +175,21 @@ export function RiderDashboardScreen({ navigation }: any) {
           >
             <View style={styles.onlineDot} />
             <Text style={styles.onlineText}>{isOnline ? 'Online' : 'Offline'}</Text>
-          </TouchableOpacity>
+          </TouchableOpacity>     
+             <TouchableOpacity 
+      onPress={() => navigation.navigate('Message')}
+      style={styles.messageButton}
+    >
+      <Feather name="message-circle" size={22} color="#f97316" />
+      {unreadCount > 0 && (
+        <View style={styles.unreadBadge}>
+          <Text style={styles.unreadBadgeText}>
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
+    </View>
         </LinearGradient>
 
         {/* Stats Cards */}
@@ -343,6 +432,43 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0a0a0a',
   },
+  headericon:{
+flexDirection:'row',
+gap:10
+  },
+  messageHeader: {
+  flexDirection: 'row',
+  justifyContent: 'flex-end',
+  paddingHorizontal: 16,
+  paddingVertical: 8,
+  backgroundColor: '#0a0a0a',
+},
+messageButton: {
+  width: 44,
+  height: 44,
+  borderRadius: 22,
+  backgroundColor: '#1a1a1a',
+  justifyContent: 'center',
+  alignItems: 'center',
+  position: 'relative',
+},
+unreadBadge: {
+  position: 'absolute',
+  top: -2,
+  right: -2,
+  minWidth: 18,
+  height: 18,
+  borderRadius: 9,
+  backgroundColor: '#ef4444',
+  justifyContent: 'center',
+  alignItems: 'center',
+  paddingHorizontal: 4,
+},
+unreadBadgeText: {
+  fontSize: 10,
+  fontWeight: 'bold',
+  color: '#fff',
+},
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

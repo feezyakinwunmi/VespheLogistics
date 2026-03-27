@@ -7,6 +7,8 @@ export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+    Message: undefined;
+
 };
 
 // Business Navigator Types
@@ -16,6 +18,8 @@ export type BusinessTabParamList = {
   History: undefined;
   Profile: undefined;
   RequestList:undefined;
+    Message: undefined;
+
 };
 
 export type BusinessStackParamList = {
@@ -25,6 +29,8 @@ export type BusinessStackParamList = {
   TrackDelivery: { id: string };
   Payment: { id: string; amount: number };
   Support: undefined;
+    Message: undefined;
+
 };
 
 // Rider Navigator Types
@@ -35,6 +41,7 @@ export type RiderTabParamList = {
   Earnings: undefined;
   Profile: undefined;
   LiveTracking:undefined;
+  Message: undefined;
 
 };
 
@@ -45,6 +52,8 @@ export type RiderStackParamList = {
   Withdraw: undefined;
   Support: undefined;
   Legal:undefined;
+  Message: undefined;
+
 };
 
 // Root Navigator Types
@@ -52,6 +61,7 @@ export type RootStackParamList = {
   Auth: undefined;
   Business: undefined;
   Rider: undefined;
+  Message: undefined;
 };
 
 // Screen Props Types

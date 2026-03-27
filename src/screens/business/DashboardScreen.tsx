@@ -14,10 +14,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Toast from 'react-native-toast-message';
-
+import { supabase } from '../../services/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { businessApi } from '../../services/api';
 import { BusinessRequest } from '../../types';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
@@ -27,6 +28,7 @@ export function BusinessDashboardScreen({ navigation }: any) {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     if (user?.id) {
@@ -40,6 +42,38 @@ export function BusinessDashboardScreen({ navigation }: any) {
     });
     return unsubscribe;
   }, [navigation]);
+
+  // Fetch unread messages on mount
+useEffect(() => {
+  fetchUnreadMessages();
+  
+  // Real-time subscription for new messages
+  const subscription = supabase
+    .channel('customer-messages')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+      },
+      () => {
+        fetchUnreadMessages();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}, [user?.id]);
+
+// Refresh unread count when screen comes into focus
+useFocusEffect(
+  React.useCallback(() => {
+    fetchUnreadMessages();
+  }, [])
+);
 
   const fetchRequests = async () => {
     if (!user?.id) return;
@@ -62,6 +96,38 @@ export function BusinessDashboardScreen({ navigation }: any) {
       setRefreshing(false);
     }
   };
+
+  // Fetch unread messages for customer
+const fetchUnreadMessages = async () => {
+  if (!user?.id) return;
+  
+  try {
+    const { data: conversations, error: convError } = await supabase
+      .from('conversations')
+      .select('id')
+      .contains('participants', [user.id]);
+
+    if (convError || !conversations || conversations.length === 0) {
+      setUnreadCount(0);
+      return;
+    }
+
+    const conversationIds = conversations.map(c => c.id);
+
+    const { count, error } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .in('conversation_id', conversationIds)
+      .eq('read', false)
+      .neq('sender_id', user.id);
+
+    if (!error) {
+      setUnreadCount(count || 0);
+    }
+  } catch (error) {
+    console.error('Error fetching unread messages:', error);
+  }
+};
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -135,9 +201,24 @@ export function BusinessDashboardScreen({ navigation }: any) {
         >
           <View style={styles.headerTop}>
             <View>
+
               <Text style={styles.welcomeText}>Welcome back,</Text>
               <Text style={styles.businessName}>{user?.name || 'Business'}</Text>
             </View>
+            <View style={styles.headicon}>
+                <TouchableOpacity 
+      onPress={() => navigation.navigate('Message')}
+      style={styles.messageButton}
+    >
+      <Feather name="message-circle" size={22} color="#f97316" />
+      {unreadCount > 0 && (
+        <View style={styles.unreadBadge}>
+          <Text style={styles.unreadBadgeText}>
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
             <TouchableOpacity
               style={styles.avatarButton}
               onPress={() => navigation.navigate('Profile')}
@@ -148,6 +229,8 @@ export function BusinessDashboardScreen({ navigation }: any) {
                 </Text>
               </View>
             </TouchableOpacity>
+            </View>
+              
           </View>
 
           {/* Quick Stats Pills */}
@@ -447,6 +530,43 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  headicon:{
+    flexDirection:'row',
+gap:4,
+  },
+  messageHeader: {
+  flexDirection: 'row',
+  justifyContent: 'flex-end',
+  paddingHorizontal: 16,
+  paddingVertical: 8,
+  backgroundColor: '#0a0a0a',
+},
+messageButton: {
+  width: 44,
+  height: 44,
+  borderRadius: 22,
+  backgroundColor: '#1a1a1a',
+  justifyContent: 'center',
+  alignItems: 'center',
+  position: 'relative',
+},
+unreadBadge: {
+  position: 'absolute',
+  top: -2,
+  right: -2,
+  minWidth: 18,
+  height: 18,
+  borderRadius: 9,
+  backgroundColor: '#ef4444',
+  justifyContent: 'center',
+  alignItems: 'center',
+  paddingHorizontal: 4,
+},
+unreadBadgeText: {
+  fontSize: 10,
+  fontWeight: 'bold',
+  color: '#fff',
+},
   avatar: {
     width: 48,
     height: 48,

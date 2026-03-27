@@ -13,6 +13,7 @@ import { PaymentScreen } from '../screens/business/PaymentScreen';
 import { HistoryScreen } from '../screens/business/HistoryScreen';
 import { ProfileScreen } from '../screens/business/ProfileScreen';
 import { SupportScreen } from '../screens/business/SupportScreen';
+import { MessagingScreen } from '../screens/common/MessagingScreen';
 
 export type BusinessStackParamList = {
   BusinessTabs: undefined;
@@ -21,6 +22,8 @@ export type BusinessStackParamList = {
   TrackDelivery: { id: string };
   Payment: { id: string; amount: number };
   Support: undefined;
+    Message: undefined;
+
   RequestList:undefined;
 };
 
@@ -87,6 +90,11 @@ export function BusinessNavigator() {
       <Stack.Screen 
         name="BusinessTabs" 
         component={BusinessTabNavigator} 
+        options={{ headerShown: false }}
+      />
+       <Stack.Screen 
+        name="Message" 
+        component={MessagingScreen} 
         options={{ headerShown: false }}
       />
       <Stack.Screen 

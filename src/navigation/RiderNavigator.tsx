@@ -15,6 +15,7 @@ import { LiveTrackingScreen } from '../screens/rider/LiveTrackingScreen';
 import { NotificationsScreen } from '../screens/rider/NotificationsScreen';
 import { SupportScreen } from '../screens/rider/SupportScreen';
 import { LegalScreen } from '../screens/rider/LegalScreen';
+import { MessagingScreen } from '../screens/common/MessagingScreen';
 
 import { SettingsScreen } from '../screens/rider/SettingsScreen';
 
@@ -28,6 +29,8 @@ export type RiderStackParamList = {
   Notifications:undefined;
   LiveTracking:undefined;
   Legal:undefined;
+    Message: undefined;
+
 
 };
 
@@ -105,6 +108,10 @@ export function RiderNavigator() {
         name="RiderTabs" 
         component={RiderTabNavigator} 
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+      name='Message'
+      component={MessagingScreen}
       />
       <Stack.Screen 
         name="DeliveryDetails" 
